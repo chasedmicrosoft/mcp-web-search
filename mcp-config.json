@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "my.search.mcp": {
+      "command": "python",
+      "args": ["/Users/chasedovey/github/azure-management-docs-pr/ai_web_search.py"],
+      "env": {
+        "PYTHONPATH": "/Users/chasedovey/github/azure-management-docs-pr/venv/lib/python3.11/site-packages"
+      }
+    }
+  }
+}

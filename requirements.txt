@@ -1,0 +1,13 @@
+# MCP Server dependencies
+mcp>=1.0.0
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+duckduckgo-search>=6.1.0
+
+# Additional dependencies for better web scraping
+lxml>=5.0.0
+html5lib>=1.1
+
+# For testing
+pytest>=8.0.0
+aiohttp
