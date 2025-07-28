@@ -5,6 +5,7 @@ A Model Context Protocol (MCP) server that provides web search functionality usi
 ## Features
 
 - 🔍 **Web Search**: Search the web for information using natural language queries
+- 📖 **URL Reading**: Read the full content of web pages from URLs (useful for getting complete context from search results)
 - 📊 **Configurable Results**: Control the number of search results returned (1-10)
 - 🚀 **Fast & Reliable**: Uses DuckDuckGo for privacy-focused search without API keys
 - 🛠 **MCP Compatible**: Fully compatible with the Model Context Protocol standard
@@ -89,6 +90,30 @@ Returns formatted search results including:
 - Title of each result
 - URL of each result
 - Snippet/description of each result
+
+### Tool: `read_url`
+
+Reads the full content of a web page from a given URL. This is particularly useful for getting the complete context of pages found in search results.
+
+**Parameters:**
+- `url` (required): The URL of the web page to read
+
+**Example:**
+```json
+{
+  "name": "read_url",
+  "arguments": {
+    "url": "https://example.com/article"
+  }
+}
+```
+
+**Response:**
+Returns the full text content of the webpage with:
+- HTML content converted to readable text
+- Scripts, styles, and navigation elements removed
+- Content truncated to 10,000 characters with smart boundary detection
+- Proper error handling for network issues or invalid URLs
 
 ## Dependencies
 

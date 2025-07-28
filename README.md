@@ -41,8 +41,10 @@ The server is configured in VS Code's `settings.json` under `chat.mcp.servers` a
 ## Features
 
 - Web search using DuckDuckGo (no API key required)
+- URL content reading for full context from search results
 - Configurable number of results (1-10)
 - Returns formatted results with titles, URLs, and snippets
+- Extracts readable text content from web pages
 - Comprehensive error handling and logging
 
 ## Dependencies
