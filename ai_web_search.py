@@ -63,6 +63,20 @@ class WebSearchServer:
                         },
                         "required": ["query"]
                     }
+                ),
+                Tool(
+                    name="read_url",
+                    description="Read and extract the full text content from a given URL. Returns the main textual content of the webpage.",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "url": {
+                                "type": "string",
+                                "description": "The URL to read content from"
+                            }
+                        },
+                        "required": ["url"]
+                    }
                 )
             ]
         
@@ -71,6 +85,8 @@ class WebSearchServer:
             """Handle tool calls."""
             if name == "web_search":
                 return await self.web_search(arguments)
+            elif name == "read_url":
+                return await self.read_url(arguments)
             else:
                 raise ValueError(f"Unknown tool: {name}")
     
@@ -130,6 +146,128 @@ class WebSearchServer:
                 type="text",
                 text=f"❌ Error performing web search: {str(e)}. Please try again or contact support if the issue persists."
             )]
+    
+    async def read_url(self, arguments: Dict[str, Any]) -> List[TextContent]:
+        """
+        Read and extract text content from a URL.
+        
+        Args:
+            arguments: Dictionary containing 'url'
+        
+        Returns:
+            List of TextContent with the extracted text content
+        """
+        logger.info(f"Read URL called with arguments: {arguments}")
+        
+        url = arguments.get("url", "").strip()
+        
+        if not url:
+            logger.warning("Empty URL provided")
+            return [TextContent(
+                type="text",
+                text="❌ Error: URL is required. Please provide a valid URL parameter."
+            )]
+        
+        # Basic URL validation
+        if not url.startswith(('http://', 'https://')):
+            if url.startswith('file://'):
+                return [TextContent(
+                    type="text",
+                    text="❌ Error: File URLs are not supported. Please provide an HTTP or HTTPS URL."
+                )]
+            url = 'https://' + url
+        
+        try:
+            logger.info(f"Reading content from URL: '{url}'")
+            
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+            
+            timeout = aiohttp.ClientTimeout(total=30)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(url, headers=headers) as response:
+                    if response.status == 200:
+                        content = await response.text()
+                        content_type = response.headers.get('content-type', '').lower()
+                        
+                        # Extract text content based on content type
+                        if 'text/html' in content_type:
+                            text_content = self._extract_text_from_html(content)
+                        elif 'text/plain' in content_type:
+                            text_content = content
+                        else:
+                            text_content = f"Content type '{content_type}' - Raw content:\n\n{content}"
+                        
+                        if not text_content.strip():
+                            return [TextContent(
+                                type="text",
+                                text=f"⚠️ No readable text content found at URL: {url}"
+                            )]
+                        
+                        response_text = f"✅ Successfully read content from: {url}\n\n{text_content}"
+                        
+                        logger.info(f"Successfully extracted {len(text_content)} characters from URL")
+                        return [TextContent(
+                            type="text",
+                            text=response_text
+                        )]
+                    else:
+                        logger.error(f"HTTP error {response.status} when accessing URL: {url}")
+                        return [TextContent(
+                            type="text",
+                            text=f"❌ Error: HTTP {response.status} - Unable to access URL: {url}"
+                        )]
+                        
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout when accessing URL: {url}")
+            return [TextContent(
+                type="text",
+                text=f"❌ Error: Timeout when accessing URL: {url}. The request took too long to complete."
+            )]
+        except aiohttp.ClientError as e:
+            logger.error(f"Client error when accessing URL {url}: {e}")
+            return [TextContent(
+                type="text",
+                text=f"❌ Error: Unable to connect to URL: {url}. Please check the URL and try again."
+            )]
+        except Exception as e:
+            logger.error(f"Error reading URL {url}: {e}")
+            return [TextContent(
+                type="text",
+                text=f"❌ Error reading URL: {str(e)}. Please check the URL and try again."
+            )]
+    
+    def _extract_text_from_html(self, html_content: str) -> str:
+        """
+        Extract readable text content from HTML.
+        
+        Args:
+            html_content: Raw HTML content
+            
+        Returns:
+            Cleaned text content
+        """
+        try:
+            soup = BeautifulSoup(html_content, 'html.parser')
+            
+            # Remove script and style elements
+            for script in soup(["script", "style", "nav", "header", "footer", "aside"]):
+                script.decompose()
+            
+            # Get text content
+            text = soup.get_text()
+            
+            # Clean up the text
+            lines = (line.strip() for line in text.splitlines())
+            chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+            text = '\n'.join(chunk for chunk in chunks if chunk)
+            
+            return text
+            
+        except Exception as e:
+            logger.error(f"Error extracting text from HTML: {e}")
+            return f"Error parsing HTML content: {str(e)}"
     
     async def _search_duckduckgo(self, query: str, max_results: int) -> List[Dict[str, str]]:
         """

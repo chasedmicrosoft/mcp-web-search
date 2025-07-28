@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Test script for the AI Web Search MCP Server
-This script demonstrates how to test the web search functionality.
+This script demonstrates how to test the web search and read URL functionality.
 """
 
 import asyncio
@@ -47,5 +47,33 @@ async def test_web_search():
         
         print("\n" + "="*40)
 
+async def test_read_url():
+    """Test the read URL functionality."""
+    server = WebSearchServer()
+    
+    # Test URLs - using simple HTML content that should work
+    test_urls = [
+        {"url": "https://httpbin.org/html"},  # Simple HTML test page
+        {"url": "https://httpbin.org/"},      # JSON API response  
+        {"url": "invalid-url"},               # Invalid URL test
+    ]
+    
+    print("\nTesting Read URL Functionality")
+    print("=" * 40)
+    
+    for i, args in enumerate(test_urls, 1):
+        print(f"\nTest {i}: Reading URL '{args['url']}'")
+        print("-" * 40)
+        
+        try:
+            results = await server.read_url(args)
+            for result in results:
+                print(result.text[:500] + "..." if len(result.text) > 500 else result.text)
+        except Exception as e:
+            print(f"Error: {e}")
+        
+        print("\n" + "="*40)
+
 if __name__ == "__main__":
     asyncio.run(test_web_search())
+    asyncio.run(test_read_url())
