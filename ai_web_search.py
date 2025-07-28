@@ -197,7 +197,7 @@ class WebSearchServer:
                         elif 'text/plain' in content_type:
                             text_content = content
                         else:
-                            text_content = f"Content type '{content_type}' - Raw content:\n\n{content[:2000]}{'...' if len(content) > 2000 else ''}"
+                            text_content = f"Content type '{content_type}' - Raw content:\n\n{content}"
                         
                         if not text_content.strip():
                             return [TextContent(
@@ -262,10 +262,6 @@ class WebSearchServer:
             lines = (line.strip() for line in text.splitlines())
             chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
             text = '\n'.join(chunk for chunk in chunks if chunk)
-            
-            # Limit the length to avoid extremely long responses
-            if len(text) > 10000:
-                text = text[:10000] + "\n\n[Content truncated - showing first 10,000 characters]"
             
             return text
             
