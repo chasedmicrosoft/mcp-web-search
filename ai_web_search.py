@@ -63,6 +63,21 @@ class WebSearchServer:
                         },
                         "required": ["query"]
                     }
+                ),
+                Tool(
+                    name="read_url",
+                    description="Read the full content of a web page from a given URL. Useful for getting the complete context of pages found in search results.",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "url": {
+                                "type": "string",
+                                "description": "The URL of the web page to read",
+                                "format": "uri"
+                            }
+                        },
+                        "required": ["url"]
+                    }
                 )
             ]
         
@@ -71,6 +86,8 @@ class WebSearchServer:
             """Handle tool calls."""
             if name == "web_search":
                 return await self.web_search(arguments)
+            elif name == "read_url":
+                return await self.read_url(arguments)
             else:
                 raise ValueError(f"Unknown tool: {name}")
     
@@ -130,6 +147,152 @@ class WebSearchServer:
                 type="text",
                 text=f"❌ Error performing web search: {str(e)}. Please try again or contact support if the issue persists."
             )]
+    
+    async def read_url(self, arguments: Dict[str, Any]) -> List[TextContent]:
+        """
+        Read the full content of a web page from a URL.
+        
+        Args:
+            arguments: Dictionary containing 'url'
+        
+        Returns:
+            List of TextContent with the page content
+        """
+        logger.info(f"Read URL called with arguments: {arguments}")
+        
+        url = arguments.get("url", "")
+        
+        logger.info(f"Reading URL: '{url}'")
+        
+        if not url:
+            logger.warning("Empty URL provided")
+            return [TextContent(
+                type="text",
+                text="❌ Error: URL is required. Please provide a url parameter."
+            )]
+
+        try:
+            logger.info(f"Fetching content from URL: '{url}'")
+            content = await self._fetch_url_content(url)
+            logger.info(f"Content fetched successfully, length: {len(content)} characters")
+            
+            if not content:
+                logger.warning(f"No content found for URL: '{url}'")
+                return [TextContent(
+                    type="text",
+                    text=f"⚠️ No readable content found at URL: '{url}'. The page may be empty or contain only non-text content."
+                )]
+
+            # Return the content with success indication
+            response_text = f"✅ Successfully read content from: {url}\n\n{content}"
+            
+            logger.info("Returning URL content")
+            return [TextContent(
+                type="text",
+                text=response_text
+            )]
+            
+        except Exception as e:
+            logger.error(f"Error reading URL: {e}")
+            return [TextContent(
+                type="text",
+                text=f"❌ Error reading URL: {str(e)}. Please check the URL and try again."
+            )]
+    
+    async def _fetch_url_content(self, url: str) -> str:
+        """
+        Fetch and extract readable content from a URL.
+        
+        Args:
+            url: The URL to fetch content from
+            
+        Returns:
+            Extracted text content from the webpage
+        """
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        
+        timeout = aiohttp.ClientTimeout(total=30)  # 30 second timeout
+        
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(url, headers=headers) as response:
+                if response.status != 200:
+                    raise Exception(f"HTTP {response.status}: Unable to fetch the webpage")
+                
+                content_type = response.headers.get('content-type', '').lower()
+                
+                # Check if it's HTML content
+                if 'text/html' in content_type:
+                    html = await response.text()
+                    return self._extract_text_from_html(html)
+                elif 'text/plain' in content_type:
+                    # Plain text content
+                    text = await response.text()
+                    return self._truncate_content(text)
+                else:
+                    # For other content types, try to read as text
+                    try:
+                        text = await response.text()
+                        return self._truncate_content(text)
+                    except:
+                        raise Exception(f"Unsupported content type: {content_type}")
+    
+    def _extract_text_from_html(self, html: str) -> str:
+        """
+        Extract readable text from HTML content.
+        
+        Args:
+            html: HTML content
+            
+        Returns:
+            Cleaned text content
+        """
+        try:
+            soup = BeautifulSoup(html, 'html.parser')
+            
+            # Remove script and style elements
+            for script in soup(["script", "style", "nav", "footer", "header", "aside"]):
+                script.decompose()
+            
+            # Get text content
+            text = soup.get_text()
+            
+            # Clean up whitespace
+            lines = (line.strip() for line in text.splitlines())
+            chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+            text = ' '.join(chunk for chunk in chunks if chunk)
+            
+            return self._truncate_content(text)
+            
+        except Exception as e:
+            logger.error(f"Error extracting text from HTML: {e}")
+            return "Unable to extract readable text from the webpage."
+    
+    def _truncate_content(self, content: str, max_length: int = 10000) -> str:
+        """
+        Truncate content to a reasonable length.
+        
+        Args:
+            content: The content to truncate
+            max_length: Maximum length of content
+            
+        Returns:
+            Truncated content
+        """
+        if len(content) <= max_length:
+            return content
+        
+        truncated = content[:max_length]
+        # Try to cut at a sentence boundary
+        last_period = truncated.rfind('.')
+        last_newline = truncated.rfind('\n')
+        
+        cut_point = max(last_period, last_newline)
+        if cut_point > max_length * 0.8:  # Only cut at sentence/line if it's not too short
+            truncated = truncated[:cut_point + 1]
+        
+        return truncated + f"\n\n[Content truncated - showing first {len(truncated)} characters of {len(content)} total]"
     
     async def _search_duckduckgo(self, query: str, max_results: int) -> List[Dict[str, str]]:
         """
